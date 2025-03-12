@@ -165,8 +165,20 @@ exports.getProductByQrCode = async (req, res) => {
   try {
     const { productId } = req.params;
     
-    // Find the product by ID from QR code data
-    const product = await Product.findById(productId);
+    // Parse the productId if it's a JSON string
+    let query;
+    try {
+      // Try to parse as JSON
+      const productData = JSON.parse(productId);
+      // Use id from JSON if available, otherwise use the whole string
+      query = productData.id || productData._id || productId;
+    } catch (e) {
+      // If parsing fails, use the productId as is (might be a plain ID)
+      query = productId;
+    }
+    
+    // Find the product by ID
+    const product = await Product.findById(query);
     
     if (!product) {
       return res.status(404).json({
@@ -199,6 +211,7 @@ exports.getProductByQrCode = async (req, res) => {
     });
   }
 };
+
 
 // Update product
 exports.updateProduct = async (req, res) => {
@@ -273,7 +286,6 @@ exports.deleteProduct = async (req, res) => {
       });
     }
     
-    // Use the pre-hook to delete associated files
     await product.deleteOne();
     
     res.status(200).json({
@@ -293,12 +305,20 @@ exports.deleteProduct = async (req, res) => {
 
 exports.addToCartFromQrCode = async (req, res) => {
   try {
-    const userId = req.user.id; // Assuming req.user is set by auth middleware
+    const userId = req.user.id;
     const { productId } = req.params;
     const { quantity = 1 } = req.body;
     
+    let query;
+    try {
+      const productData = JSON.parse(productId);
+      query = productData.id || productData._id || productId;
+    } catch (e) {
+      query = productId;
+    }
+    
     // Find the product
-    const product = await Product.findById(productId);
+    const product = await Product.findById(query);
     
     if (!product) {
       return res.status(404).json({
@@ -307,7 +327,7 @@ exports.addToCartFromQrCode = async (req, res) => {
       });
     }
     
-    // Find or create cart
+    // Rest of the function remains the same...
     let cart = await Cart.findOne({ 
       user: userId,
       status: 'active'
@@ -317,10 +337,8 @@ exports.addToCartFromQrCode = async (req, res) => {
       cart = new Cart({ user: userId, items: [] });
     }
     
-    // Add item to cart using the cart model's method
-    await cart.addItem(productId, parseInt(quantity));
+    await cart.addItem(product._id, parseInt(quantity));
     
-    // Return updated cart
     res.status(200).json({
       success: true,
       message: 'Product added to cart successfully',

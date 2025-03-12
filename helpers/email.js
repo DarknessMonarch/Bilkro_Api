@@ -1,3 +1,4 @@
+const Handlebars = require('handlebars');
 const nodemailer = require("nodemailer");
 const dotenv = require("dotenv");
 const path = require('path');
@@ -33,7 +34,7 @@ exports.sendWelcomeEmail = async (email, username) => {
     let mailOptions = {
       from: process.env.EMAIL,
       to: email,
-      subject: 'Welcome to 433tips',
+      subject: 'Welcome to bilkro',
       html: personalizedTemplate,
     };
 
@@ -46,6 +47,65 @@ exports.sendWelcomeEmail = async (email, username) => {
   }
 };
 
+
+exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) => {
+  if (!email || !customerName || !orderDetails) {
+    throw new Error('Email, customer name, and order details are required to send an order confirmation email.');
+  }
+  
+  try {
+    // Get the email template
+    const emailPath = path.join(__dirname, '../client/orderConfirmation.html');
+    const templateSource = fs.readFileSync(emailPath, 'utf-8');
+    
+    // Compile the template with Handlebars
+    const template = Handlebars.compile(templateSource);
+    
+    // Format date
+    const orderDate = new Date(orderDetails.date || Date.now()).toLocaleString();
+    
+    // Prepare the data for the template
+    const emailData = {
+      customerName,
+      orderId: orderDetails.saleId || 'N/A',
+      orderDate,
+      items: orderDetails.items.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price.toFixed(2),
+        itemTotal: (item.price * item.quantity).toFixed(2)
+      })),
+      subtotal: orderDetails.subtotal.toFixed(2),
+      discount: orderDetails.discount.toFixed(2),
+      total: orderDetails.total.toFixed(2),
+      customerEmail: email,
+      customerPhone: orderDetails.customerInfo?.phone || 'N/A',
+      customerAddress: orderDetails.customerInfo?.address || 'N/A',
+      paymentMethod: orderDetails.paymentMethod || 'N/A',
+      transactionId: orderDetails.transactionId || orderDetails.saleId || 'N/A',
+      orderTrackingUrl: `${process.env.WEBSITE_LINK}/orders/${orderDetails.saleId}`
+    };
+    
+    // Apply the data to the template
+    const personalizedTemplate = template(emailData);
+    
+    // Set up email options
+    let mailOptions = {
+      from: process.env.EMAIL,
+      to: email,
+      subject: 'Your Order Confirmation - Bilkro',
+      html: personalizedTemplate,
+    };
+    
+    // Send the email
+    const transporter = emailTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, message: 'Order confirmation email sent successfully.' };
+  } catch (error) {
+    console.error('Error sending order confirmation email:', error);
+    throw new Error('Failed to send the order confirmation email.');
+  }
+};
 
 exports.sendVerificationCodeEmail = async (email, username, verificationCode) => {
   if (!email || !username) {

@@ -13,11 +13,12 @@ const authRoute = require("./routes/auth");
 const cartRoutes = require('./routes/cart');
 const notificationRoute = require("./routes/notification");
 const productRoute = require("./routes/product");
+const reportRoute = require("./routes/report");
 
 connectDB();
 
 const PORT = process.env.PORT || 5000;
-const WEBSITE= process.env.WEBSITE_LINK
+const WEBSITE = process.env.WEBSITE_LINK
 
 const corsOptions = {
   origin: WEBSITE,
@@ -48,8 +49,10 @@ app.use(
 
 // Routes
 app.use("/api/v1/auth", authRoute);
+
 app.use("/api/v1/cart", cartRoutes);
 app.use("/api/v1/product", productRoute);
+app.use("/api/v1/reports", reportRoute);
 app.use("/api/v1/notification", notificationRoute);
 
 
@@ -60,6 +63,8 @@ app.get("/", (req, res) => {
 
 app.options("/api/v1/auth/update-profile-image", cors(corsOptions));
 app.options("/api/v1/auth/register", cors(corsOptions));
+app.options("/api/v1/product/", cors(corsOptions));
+app.options("/api/v1/product/:id", cors(corsOptions));
 
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);

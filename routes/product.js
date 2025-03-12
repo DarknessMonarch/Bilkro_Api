@@ -8,7 +8,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ 
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB max file size
+    fileSize:  1024 * 1024 * 100 // 100MB max file size
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -19,7 +19,6 @@ const upload = multer({
   }
 });
 
-// Create a new product (only authenticated users can create)
 router.post(
   '/', 
   auth.protect, 
