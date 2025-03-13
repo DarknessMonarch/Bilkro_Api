@@ -67,7 +67,7 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
     // Prepare the data for the template
     const emailData = {
       customerName,
-      orderId: orderDetails.saleId || 'N/A',
+      orderId: orderDetails.reportId || orderDetails.saleId || 'N/A',
       orderDate,
       items: orderDetails.items.map(item => ({
         name: item.name,

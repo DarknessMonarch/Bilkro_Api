@@ -272,6 +272,7 @@ exports.checkout = async (req, res) => {
       // Prepare order details for email
       const orderDetails = {
         reportId: report._id,
+        saleId: report._id,
         date: new Date(),
         items: emailItems,
         subtotal: cart.subtotal,
@@ -290,7 +291,20 @@ exports.checkout = async (req, res) => {
     } catch (emailError) {
       // Log email error but don't fail the checkout process
       console.error('Failed to send order confirmation email:', emailError);
-      // Continue with the checkout process
+      res.status(200).json({
+        success: true,
+        message: 'Checkout completed successfully',
+        data: {
+          reportId: report._id,
+          items: cart.items,
+          itemCount: cart.itemCount,
+          subtotal: cart.subtotal,
+          discount: cart.discount,
+          total: cart.total,
+          totalProfit: totalProfit,
+          categories: categories
+        }
+      });
     }
 
     // Return success response with report info

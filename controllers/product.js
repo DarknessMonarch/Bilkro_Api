@@ -2,6 +2,7 @@ const { uploadFile, deleteFile } = require('../helpers/fileStorage');
 const Product = require('../models/product');
 const Cart = require('../models/cart');
 const sharp = require('sharp');
+const mongoose = require('mongoose');
 
 // Utility function to process image
 const processImage = async (file) => {
@@ -274,10 +275,20 @@ exports.updateProduct = async (req, res) => {
   }
 };
 
-// Delete product
 exports.deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const { id } = req.params;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID format'
+      });
+    }
+    
+    // Find product first to trigger pre middleware
+    const product = await Product.findById(id);
     
     if (!product) {
       return res.status(404).json({
@@ -286,7 +297,9 @@ exports.deleteProduct = async (req, res) => {
       });
     }
     
+    // Use deleteOne to ensure middleware runs
     await product.deleteOne();
+    
     
     res.status(200).json({
       success: true,
@@ -301,7 +314,6 @@ exports.deleteProduct = async (req, res) => {
     });
   }
 };
-
 
 exports.addToCartFromQrCode = async (req, res) => {
   try {

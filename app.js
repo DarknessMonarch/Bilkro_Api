@@ -18,18 +18,19 @@ const reportRoute = require("./routes/report");
 connectDB();
 
 const PORT = process.env.PORT || 5000;
-const WEBSITE = process.env.WEBSITE_LINK
+const WEBSITE = process.env.WEBSITE_LINK || 'https://bilkro.swiftsyn.com';
 
 const corsOptions = {
-  origin: WEBSITE,
+  origin: [WEBSITE, 'https://bilkro.swiftsyn.com'],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
   optionsSuccessStatus: 200,
 };
 
+app.use(cors(corsOptions));
+
 app.use(express.json({ limit: '200mb' }));
-app.use(cors());
 app.use(express.urlencoded({ extended: false, limit: '200mb' }));
 app.use(bodyParser.json());
 app.use(helmet());
@@ -49,7 +50,6 @@ app.use(
 
 // Routes
 app.use("/api/v1/auth", authRoute);
-
 app.use("/api/v1/cart", cartRoutes);
 app.use("/api/v1/product", productRoute);
 app.use("/api/v1/reports", reportRoute);
@@ -65,6 +65,7 @@ app.options("/api/v1/auth/update-profile-image", cors(corsOptions));
 app.options("/api/v1/auth/register", cors(corsOptions));
 app.options("/api/v1/product/", cors(corsOptions));
 app.options("/api/v1/product/:id", cors(corsOptions));
+app.options("/api/v1/cart/checkout", cors(corsOptions));
 
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
