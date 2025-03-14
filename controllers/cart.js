@@ -334,21 +334,26 @@ exports.checkout = async (req, res) => {
 
     const user = await req.user;
 
-    try {
-      await sendOrderConfirmationEmail(user.email, {
-        orderId: report._id,
-        items: emailItems,
-        subtotal: cart.subtotal,
-        discount: cart.discount,
-        total: cart.total,
-        amountPaid: paidAmount,
-        remainingBalance: remainingBal,
-        paymentStatus: paymentStat,
-        debtId: debtRecord ? debtRecord._id : null,
-        dueDate: debtRecord ? debtRecord.dueDate : null
-      });
-    } catch (emailError) {
-      console.error('Error sending confirmation email:', emailError);
+    if (user.email && customerInfo && customerInfo.name) {
+      try {
+        await sendOrderConfirmationEmail(user.email, {
+          orderId: report._id,
+          customerName: customerInfo.name, 
+          items: emailItems,
+          subtotal: cart.subtotal,
+          discount: cart.discount,
+          total: cart.total,
+          amountPaid: paidAmount,
+          remainingBalance: remainingBal,
+          paymentStatus: paymentStat,
+          debtId: debtRecord ? debtRecord._id : null,
+          dueDate: debtRecord ? debtRecord.dueDate : null
+        });
+      } catch (emailError) {
+        console.error('Error sending confirmation email:', emailError);
+      }
+    } else {
+      console.warn('Skipping email confirmation - missing required customer information');
     }
 
     res.status(200).json({
