@@ -134,7 +134,7 @@ exports.addToCart = async (req, res) => {
   }
 };
 
-xports.checkout = async (req, res) => {
+exports.checkout = async (req, res) => {
   try {
     const userId = req.user.id;
     const { paymentMethod, customerInfo, paymentStatus, amountPaid, remainingBalance } = req.body;
@@ -508,8 +508,6 @@ exports.clearCart = async (req, res) => {
 };
 
 
-/*************  ✨ Codeium Command ⭐  *************/
-/******  96bb6249-96ec-439e-a531-636bbc5a33a3  *******/
 exports.getAllCarts = async (req, res) => {
   try {
     // Only admins should be able to access this endpoint
