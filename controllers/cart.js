@@ -332,8 +332,24 @@ exports.checkout = async (req, res) => {
     cart.status = 'converted';
     await cart.save();
 
-    // Rest of the function remains the same...
-    // Send email confirmation, etc.
+    const user = await req.user;
+
+    try {
+      await sendOrderConfirmationEmail(user.email, {
+        orderId: report._id,
+        items: emailItems,
+        subtotal: cart.subtotal,
+        discount: cart.discount,
+        total: cart.total,
+        amountPaid: paidAmount,
+        remainingBalance: remainingBal,
+        paymentStatus: paymentStat,
+        debtId: debtRecord ? debtRecord._id : null,
+        dueDate: debtRecord ? debtRecord.dueDate : null
+      });
+    } catch (emailError) {
+      console.error('Error sending confirmation email:', emailError);
+    }
 
     res.status(200).json({
       success: true,

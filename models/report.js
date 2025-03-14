@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// Define schema for individual report items
 const reportItemSchema = new Schema({
   productId: {
     type: Schema.Types.ObjectId,

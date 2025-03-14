@@ -494,3 +494,29 @@ exports.getOverdueDebtsReport = async (req, res) => {
     });
   }
 };
+
+exports.deleteAllDebts = async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+    }
+
+    const result = await Debt.deleteMany({});
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} debt records`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Error deleting debt records:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete debt records',
+      error: error.message
+    });
+  }
+};
