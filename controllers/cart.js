@@ -336,19 +336,29 @@ exports.checkout = async (req, res) => {
 
     if (user.email && customerInfo && customerInfo.name) {
       try {
-        await sendOrderConfirmationEmail(user.email, {
-          orderId: report._id,
-          customerName: customerInfo.name, 
+        const orderDetails = {
+          reportId: report._id,
+          saleId: report._id,
+          date: new Date(),
           items: emailItems,
           subtotal: cart.subtotal,
           discount: cart.discount,
           total: cart.total,
+          customerInfo: customerInfo,
+          paymentMethod: paymentMethod,
+          transactionId: report._id,
+          debtId: debtRecord ? debtRecord._id : null,
+          dueDate: debtRecord ? debtRecord.dueDate : null,
           amountPaid: paidAmount,
           remainingBalance: remainingBal,
-          paymentStatus: paymentStat,
-          debtId: debtRecord ? debtRecord._id : null,
-          dueDate: debtRecord ? debtRecord.dueDate : null
-        });
+          paymentStatus: paymentStat
+        };
+        
+        await sendOrderConfirmationEmail(
+          user.email,
+          customerInfo?.name || user.username,
+          orderDetails  
+        );
       } catch (emailError) {
         console.error('Error sending confirmation email:', emailError);
       }

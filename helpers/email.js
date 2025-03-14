@@ -19,6 +19,23 @@ const emailTransporter = () => {
   });
 };
 
+Handlebars.registerHelper('eq', function(a, b) {
+  return a === b;
+});
+
+Handlebars.registerHelper('gt', function(a, b) {
+  return a > b;
+});
+
+Handlebars.registerHelper('lt', function(a, b) {
+  return a < b;
+});
+
+Handlebars.registerHelper('formatCurrency', function(value) {
+  return parseFloat(value).toFixed(2);
+});
+
+
 
 
 exports.sendWelcomeEmail = async (email, username) => {
