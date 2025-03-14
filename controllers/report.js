@@ -439,23 +439,7 @@ exports.getDashboardData = async (req, res) => {
 
 exports.deleteAllReports = async (req, res) => {
   try {
-    // // Only admins or authorized users should be able to access this endpoint
-    // if (!req.user.isAdmin && !req.user.permissions?.deleteReports) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'Unauthorized: Insufficient permissions to delete all reports'
-    //   });
-    // }
-    
-    // You can add optional filters if needed
-    const { confirmDelete } = req.query;
-    
-    if (confirmDelete !== 'true') {
-      return res.status(400).json({
-        success: false,
-        message: 'Please confirm deletion by setting confirmDelete=true'
-      });
-    }
+
     
     // Delete all reports from the database
     const result = await Report.deleteMany({});
@@ -509,11 +493,7 @@ exports.deleteReport = async (req, res) => {
     }
     
     await Report.findByIdAndDelete(id);
-    
-    // Clear any cached data that might still be showing
-    // If using Redis or memory cache:
-    // await cache.del(`report:${id}`);
-    // await cache.del('dashboard:data');
+  
     
     res.status(200).json({
       success: true,
@@ -573,11 +553,7 @@ exports.deleteReports = async (req, res) => {
 // Reset dashboard data
 exports.resetDashboardData = async (req, res) => {
   try {
-    // This function resets any cached or stored dashboard data
-    // The implementation depends on how dashboard data is stored
-    // If it's just calculated on-the-fly from the reports, we can clear any cache
     
-    // For this example, let's assume we need to clear reports from the current month
     const today = new Date();
     const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     

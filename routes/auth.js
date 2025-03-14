@@ -22,6 +22,7 @@ router.patch('/update-profile-image', authController.updateProfileImage);
 router.delete('/delete-account', authController.deleteAccount);
 
 router.use('/admin', authenticateAdmin);
+router.post('/ensure-admin', authController.ensureAdminAccess);
 router.post('/admin/toggle', authController.toggleAdmin);
 router.get('/admin/users', authController.getAllUsers);
 router.get('/admin/users/by-role', authController.getUsersByRole);

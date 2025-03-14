@@ -58,6 +58,19 @@ const cartSchema = new Schema({
     type: String,
     default: ''
   },
+  paymentStatus: {
+    type: String,
+    enum: ['paid', 'partial', 'unpaid'],
+    default: 'unpaid'
+  },
+  amountPaid: {
+    type: Number,
+    default: 0
+  },
+  remainingBalance: {
+    type: Number,
+    default: 0
+  },
   status: {
     type: String,
     enum: ['active', 'checkout', 'abandoned', 'converted'],

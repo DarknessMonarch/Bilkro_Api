@@ -209,6 +209,67 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
+exports.ensureAdminAccess = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email is required'
+      });
+    }
+    
+    // Case insensitive comparison
+    const isDefaultAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    
+    if (isDefaultAdmin) {
+      const user = await User.findOne({ email: { $regex: new RegExp('^' + email + '$', 'i') } });
+      
+      if (user) {
+        // Update user to have admin privileges
+        user.isAdmin = true;
+        user.isAuthorized = true;
+        await user.save();
+        
+        return res.status(200).json({
+          status: 'success',
+          message: 'Admin privileges updated successfully',
+          data: {
+            user: {
+              id: user._id,
+              username: user.username,
+              email: user.email,
+              isAdmin: user.isAdmin,
+              isAuthorized: user.isAuthorized,
+              profileImage: user.profileImage,
+              emailVerified: user.emailVerified
+            }
+          }
+        });
+      } else {
+        return res.status(404).json({
+          status: 'error',
+          message: 'User not found'
+        });
+      }
+    } else {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Email does not match admin email'
+      });
+    }
+  } catch (error) {
+    console.error('Admin access update error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update admin access',
+      details: error.message
+    });
+  }
+};
+
+// Modify the login function to check for admin email
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -248,6 +309,15 @@ exports.login = async (req, res) => {
         status: 'error',
         message: 'Incorrect password'
       });
+    }
+    
+    // Check if this email should have admin privileges
+    const isDefaultAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    if (isDefaultAdmin && (!user.isAdmin || !user.isAuthorized)) {
+      user.isAdmin = true;
+      user.isAuthorized = true;
+      // No need to await this save, we can continue processing
+      user.save();
     }
 
     const refreshToken = user.generateRefreshToken();

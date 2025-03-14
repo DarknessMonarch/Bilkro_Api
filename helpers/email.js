@@ -143,8 +143,8 @@ exports.contactEmail = async (email, username, message) => {
     const personalizedTemplate = template.replace('{{username}}', username).replace('{{email}}', email).replace('{{message}}', message);
 
     let mailOptions = {
-      from: process.env.SUPPORT_EMAIL,
-      to: process.env.SUPPORT_EMAIL,
+      from: process.env.EMAIL,
+      to: process.env.EMAIL,
       subject: 'Contact Us',
       html: personalizedTemplate,
     };

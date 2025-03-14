@@ -107,6 +107,19 @@ const reportSchema = new Schema({
     type: String,
     required: true
   },
+  paymentStatus: {
+    type: String,
+    enum: ['paid', 'partial', 'unpaid'],
+    default: 'paid'
+  },
+  amountPaid: {
+    type: Number,
+    default: 0
+  },
+  remainingBalance: {
+    type: Number,
+    default: 0
+  },
   user: {
     type: Schema.Types.ObjectId,
     ref: 'User'

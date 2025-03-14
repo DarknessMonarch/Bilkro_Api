@@ -3,6 +3,7 @@ const User = require('../models/users');
 
 exports.protect = async (req, res, next) => {
   try {
+    
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
@@ -29,7 +30,7 @@ exports.protect = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(decoded.id).select('+emailVerified');
+    const user = await User.findById(decoded.id);
     if (!user) {
       return res.status(401).json({
         status: 'error',
@@ -44,10 +45,17 @@ exports.protect = async (req, res, next) => {
       });
     }
 
-    req.user = user;
+    req.user = {
+      id: user._id,
+      email: user.email,
+      username: user.username,
+      isAdmin: user.isAdmin,
+      isAuthorized: user.isAuthorized,
+      emailVerified: user.emailVerified
+    };
+    
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
     return res.status(500).json({
       status: 'error',
       message: 'Authentication failed'
@@ -57,15 +65,23 @@ exports.protect = async (req, res, next) => {
 
 exports.authenticateAdmin = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.isAdmin) {
+    
+    if (!req.user || !req.user.id) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. User not authenticated.'
+      });
+    }
+    
+    if (!req.user.isAdmin) {
       return res.status(403).json({
         status: 'error',
         message: 'Access denied. Admin privileges required'
       });
     }
+    
     next();
   } catch (error) {
-    console.error('Admin auth error:', error);
     return res.status(500).json({
       status: 'error',
       message: 'Admin authentication failed'
@@ -73,18 +89,25 @@ exports.authenticateAdmin = async (req, res, next) => {
   }
 };
 
-
 exports.authenticateAuthorizedAdmin = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.isAdmin || !req.user.isAuthorized) {
+    
+    if (!req.user || !req.user.id) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. User not authenticated.'
+      });
+    }
+    
+    if (!req.user.isAdmin || !req.user.isAuthorized) {
       return res.status(403).json({
         status: 'error',
         message: 'Access denied. Authorized admin privileges required'
       });
     }
+    
     next();
   } catch (error) {
-    console.error('Authorized admin auth error:', error);
     return res.status(500).json({
       status: 'error',
       message: 'Authorized admin authentication failed'

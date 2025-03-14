@@ -139,7 +139,7 @@ exports.addToCart = async (req, res) => {
 exports.checkout = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { paymentMethod, customerInfo } = req.body;
+    const { paymentMethod, customerInfo, paymentStatus, amountPaid, remainingBalance } = req.body;
 
     // Find active cart
     const cart = await Cart.findOne({
@@ -181,6 +181,31 @@ exports.checkout = async (req, res) => {
         unavailableItems
       });
     }
+
+    // Ensure payment values are proper numbers
+    const paidAmount = parseFloat(amountPaid) || 0;
+    
+    // Calculate remaining balance if not provided, or use the provided value
+    const remainingBal = 
+      remainingBalance !== undefined ? 
+      parseFloat(remainingBalance) : 
+      Math.max(0, cart.total - paidAmount);
+    
+    // Determine payment status if not provided
+    let paymentStat = paymentStatus || 'paid';
+    
+    if (!paymentStatus) {
+      if (paidAmount <= 0) {
+        paymentStat = 'unpaid';
+      } else if (paidAmount < cart.total) {
+        paymentStat = 'partial';
+      }
+    }
+
+    // Update cart with payment information
+    cart.amountPaid = paidAmount;
+    cart.remainingBalance = remainingBal;
+    cart.paymentStatus = paymentStat;
 
     // Generate report data
     const reportItems = [];
@@ -246,7 +271,7 @@ exports.checkout = async (req, res) => {
       }
     }
 
-    // Create report directly instead of creating a sale first
+    // Create report with payment information included
     const report = new Report({
       date: new Date(),
       items: reportItems,
@@ -255,6 +280,9 @@ exports.checkout = async (req, res) => {
       totalProfit,
       categories,
       paymentMethod,
+      amountPaid: paidAmount,
+      remainingBalance: remainingBal,
+      paymentStatus: paymentStat,
       user: userId
     });
 
@@ -267,50 +295,11 @@ exports.checkout = async (req, res) => {
     // Get user info for email
     const user = await req.user;
 
-    // Send order confirmation email
-    try {
-      // Prepare order details for email
-      const orderDetails = {
-        reportId: report._id,
-        saleId: report._id,
-        date: new Date(),
-        items: emailItems,
-        subtotal: cart.subtotal,
-        discount: cart.discount,
-        total: cart.total,
-        customerInfo: customerInfo,
-        paymentMethod: paymentMethod,
-        transactionId: report._id
-      };
-
-      await sendOrderConfirmationEmail(
-        user.email,
-        customerInfo.name || user.username,
-        orderDetails
-      );
-    } catch (emailError) {
-      // Log email error but don't fail the checkout process
-      console.error('Failed to send order confirmation email:', emailError);
-      res.status(200).json({
-        success: true,
-        message: 'Checkout completed successfully',
-        data: {
-          reportId: report._id,
-          items: cart.items,
-          itemCount: cart.itemCount,
-          subtotal: cart.subtotal,
-          discount: cart.discount,
-          total: cart.total,
-          totalProfit: totalProfit,
-          categories: categories
-        }
-      });
-    }
-
-    // Return success response with report info
+    // Return success response with report info - make sure to include payment details
     res.status(200).json({
       success: true,
       message: 'Checkout completed successfully',
+      orderId: report._id,
       data: {
         reportId: report._id,
         items: cart.items,
@@ -318,6 +307,9 @@ exports.checkout = async (req, res) => {
         subtotal: cart.subtotal,
         discount: cart.discount,
         total: cart.total,
+        amountPaid: paidAmount,
+        remainingBalance: remainingBal,
+        paymentStatus: paymentStat,
         totalProfit: totalProfit,
         categories: categories
       }
@@ -330,7 +322,8 @@ exports.checkout = async (req, res) => {
       error: error.message
     });
   }
-};
+},
+
   // Update item quantity in cart
   exports.updateCartItem = async (req, res) => {
     try {
