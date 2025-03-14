@@ -52,18 +52,18 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
   if (!email || !customerName || !orderDetails) {
     throw new Error('Email, customer name, and order details are required to send an order confirmation email.');
   }
-  
+
   try {
     // Get the email template
     const emailPath = path.join(__dirname, '../client/orderConfirmation.html');
     const templateSource = fs.readFileSync(emailPath, 'utf-8');
-    
+
     // Compile the template with Handlebars
     const template = Handlebars.compile(templateSource);
-    
+
     // Format date
     const orderDate = new Date(orderDetails.date || Date.now()).toLocaleString();
-    
+
     // Prepare the data for the template
     const emailData = {
       customerName,
@@ -85,10 +85,10 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
       transactionId: orderDetails.transactionId || orderDetails.saleId || 'N/A',
       orderTrackingUrl: `${process.env.WEBSITE_LINK}/orders/${orderDetails.saleId}`
     };
-    
+
     // Apply the data to the template
     const personalizedTemplate = template(emailData);
-    
+
     // Set up email options
     let mailOptions = {
       from: process.env.EMAIL,
@@ -96,7 +96,7 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
       subject: 'Your Order Confirmation - Bilkro',
       html: personalizedTemplate,
     };
-    
+
     // Send the email
     const transporter = emailTransporter();
     const info = await transporter.sendMail(mailOptions);
@@ -106,6 +106,9 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
     throw new Error('Failed to send the order confirmation email.');
   }
 };
+
+
+
 
 exports.sendVerificationCodeEmail = async (email, username, verificationCode) => {
   if (!email || !username) {
@@ -126,11 +129,76 @@ exports.sendVerificationCodeEmail = async (email, username, verificationCode) =>
 
     const transporter = emailTransporter();
     const info = await transporter.sendMail(mailOptions);
-    return { success: true, message: 'Vip verification email sent successfully.' };
+    return { success: true, message: 'Verification email sent successfully.' };
   } catch (error) {
     throw new Error('Failed to send the verification email.');
   }
 };
+
+
+exports.sendAdminEmail = async (email, username, isAdmin) => {
+
+  try {
+    const status = isAdmin ? 'granted' : 'revoked';
+    const emailPath = path.join(__dirname, '../client/adminEmail.html');
+    const template = fs.readFileSync(emailPath, 'utf-8');
+    const personalizedTemplate = template.replace('{{username}}', username).replace('{{status}}', status);
+
+    let mailOptions = {
+      from: process.env.EMAIL,
+      to: email,
+      subject: 'You are  now an admin',
+      html: personalizedTemplate,
+    };
+
+    const transporter = emailTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, message: 'Admin email sent successfully.' };
+  } catch (error) {
+    throw new Error('Failed to send the verification email.');
+  }
+};
+
+exports.sendDebtReminderEmail = async (email, debtDetails) => {
+  if (!email || !debtDetails) {
+    throw new Error('Email and debt details are required to send a debt reminder email.');
+  }
+
+  try {
+    const emailPath = path.join(__dirname, '../client/debtReminder.html');
+    const templateSource = fs.readFileSync(emailPath, 'utf-8');
+
+    const template = Handlebars.compile(templateSource);
+
+    const dueDate = new Date(debtDetails.dueDate).toLocaleDateString();
+
+    const emailData = {
+      username: debtDetails.username,
+      debtId: debtDetails.debtId,
+      orderId: debtDetails.orderId,
+      amount: debtDetails.amount.toFixed(2),
+      dueDate: dueDate,
+
+    };
+
+    const personalizedTemplate = template(emailData);
+
+    let mailOptions = {
+      from: process.env.EMAIL,
+      to: email,
+      subject: 'Payment Reminder - Bilkro',
+      html: personalizedTemplate,
+    };
+
+    const transporter = emailTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, message: 'Debt reminder email sent successfully.' };
+  } catch (error) {
+    console.error('Error sending debt reminder email:', error);
+    throw new Error('Failed to send the debt reminder email.');
+  }
+};
+
 
 exports.contactEmail = async (email, username, message) => {
   if (!email || !username || !message) {

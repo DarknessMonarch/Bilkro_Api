@@ -37,30 +37,32 @@
             color: #383E49; 
         }
 
-        .admin-box {
+        .payment-info-box {
             background-color: #f8f7f7; 
             border-radius: 8px;
             padding: 25px;
             margin: 20px 0;
             border-left: 4px solid #1366D9; 
             box-shadow: rgb(204, 219, 232) 3px 3px 6px 0px inset, rgba(255, 255, 255, 0.5) -3px -3px 6px 1px inset;
-            text-align: center;
         }
 
-        .admin-message {
-            font-size: 24px;
+        .debt-id {
+            font-size: 18px;
             font-weight: bold;
             color: #1366D9;
-            padding: 15px 0;
+            padding: 10px 0;
         }
 
-        .admin-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            background-color: #1366D9;
-            color: #ffffff;
-            border-radius: 20px;
+        .due-date {
+            color: #606060;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .amount-due {
+            font-size: 28px;
             font-weight: bold;
+            color: #383E49;
             margin: 15px 0;
         }
 
@@ -78,14 +80,11 @@
             font-size: 16px;
         }
 
-        ul {
+        .order-reference {
+            background-color: #f8f7f7;
+            border-radius: 8px;
+            padding: 15px;
             margin: 20px 0;
-            padding-left: 20px;
-        }
-
-        li {
-            margin-bottom: 10px;
-            color: #383E49;
         }
 
         .content-foot {
@@ -108,21 +107,58 @@
             border-bottom-right-radius: 8px;
             border-top: 1px solid rgba(149, 157, 165, 0.2); 
         }
+
+        .social-icons {
+            padding: 20px 0;
+        }
+
+        .social-links {
+            display: inline-block;
+            margin: 0 8px;
+        }
+
+        .social-image {
+            width: 32px;
+            height: 32px;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+
+        .social-image:hover {
+            opacity: 1;
+        }
+
+        .footer p {
+            margin: 8px 0;
+            font-size: 14px;
+        }
         
         .button {
             display: inline-block;
-            padding: 10px 20px;
+            padding: 12px 24px;
             background-color: #1366D9; 
             color: white;
             text-decoration: none;
             border-radius: 4px;
             font-weight: bold;
-            margin-top: 15px;
+            margin-top: 20px;
             transition: background-color 0.2s;
+            text-align: center;
         }
         
         .button:hover {
             background-color: #327de6; 
+        }
+        
+        .reminder-badge {
+            background-color: #f73535;
+            color: white;
+            border-radius: 20px;
+            padding: 5px 15px;
+            display: inline-block;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -131,31 +167,40 @@
     <div class="container">
         <div class="header">
             <img src="https://raw.githubusercontent.com/DarknessMonarch/Bilkro/refs/heads/master/public/assets/logo.png"
-                alt="bilro logo">
+                alt="bilkro logo">
         </div>
         <div class="content">
             <p>Hello {{username}},</p>
-            <div class="admin-box">
-                <h3>Administrator Access {{status}}</h3>
-                <div class="admin-badge">ADMIN</div>
-                <div class="admin-message">You now have administrative privileges!</div>
+            <div class="reminder-badge">Payment Reminder</div>
+            <h3>Your Payment Is Due Soon</h3>
+            <p>We'd like to remind you that you have an outstanding payment due for your previous order with us.</p>
+            
+            <div class="payment-info-box">
+                <h3>Payment Details</h3>
+                <div class="debt-id">Debt ID: {{debtId}}</div>
+                <div class="due-date">Due Date: {{dueDate}}</div>
+                
+                <p>Amount Due:</p>
+                <div class="amount-due">${{amount}}</div>
+                
+                <p>Please make your payment at your earliest convenience to avoid any late fees or service interruptions.</p>
+                
+                <!-- <a href="{{paymentUrl}}" class="button">Make Payment Now</a> -->
             </div>
-            <p>As an administrator, you now have access to the following features:</p>
-            <ul>
-                <li>Complete access to all system account, dashbard and report features</li>
-                <li>User management (create, edit, delete user accounts)</li>
-                <li>Generate and access all sales and analytics reports</li>
-                <li>Modify system-wide content and settings</li>
-                <li>View detailed transaction logs </li>
-            </ul>
-            <p>Please use these administrative privileges responsibly. If you have any questions about your new role, contact our support team.</p>
+            
+            <div class="order-reference">
+                <h3>Order Reference</h3>
+                <p><strong>Order ID:</strong> {{orderId}}</p>
+            </div>
+            
+            <p>If you have already made this payment, please disregard this reminder. If you're experiencing any difficulties with payment or need to discuss payment options, please contact our customer service team.</p>
             <div class="content-foot">
-                <p>Best regards,<br><span>Bilkro Team</span></p>
+                <p>Thank you for your prompt attention to this matter.<br><span>Bilkro Team</span></p>
             </div>
         </div>
         <div class="footer">
             <p>Contact: bilkro67@gmail.com</p>
-            <p>You are receiving this email because your administrator status has been updated</p>
+            <p>You are receiving this email because you have an outstanding payment with us.</p>
             <p>© 2025 bilkro.com. All rights reserved.</p>
         </div>
     </div>

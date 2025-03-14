@@ -14,6 +14,7 @@ const cartRoutes = require('./routes/cart');
 const notificationRoute = require("./routes/notification");
 const productRoute = require("./routes/product");
 const reportRoute = require("./routes/report");
+const debtRoute = require("./routes/debt");
 
 connectDB();
 
@@ -28,7 +29,7 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-app.use(cors(corsOptions));
+app.use(cors());
 
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ extended: false, limit: '200mb' }));
@@ -51,6 +52,7 @@ app.use(
 // Routes
 app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/cart", cartRoutes);
+app.use("/api/v1/debt", debtRoute);
 app.use("/api/v1/product", productRoute);
 app.use("/api/v1/reports", reportRoute);
 app.use("/api/v1/notification", notificationRoute);

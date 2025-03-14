@@ -1,6 +1,7 @@
 const Cart = require('../models/cart');
 const { sendOrderConfirmationEmail } = require('../helpers/email');
 const Product = require('../models/product');
+const debtController = require('../controllers/debt');
 const Report = require('../models/report');
 
 // Get user's active cart
@@ -20,13 +21,11 @@ exports.getCart = async (req, res) => {
       await cart.save();
     }
 
-    // Check if any items in the cart have quantity issues (product no longer available)
     let hasUpdates = false;
     for (let i = cart.items.length - 1; i >= 0; i--) {
       const item = cart.items[i];
       const product = item.product;
 
-      // Remove item if product no longer exists or is out of stock
       if (!product || product.quantity === 0) {
         cart.items.splice(i, 1);
         hasUpdates = true;
@@ -135,8 +134,7 @@ exports.addToCart = async (req, res) => {
   }
 };
 
-
-exports.checkout = async (req, res) => {
+xports.checkout = async (req, res) => {
   try {
     const userId = req.user.id;
     const { paymentMethod, customerInfo, paymentStatus, amountPaid, remainingBalance } = req.body;
@@ -184,16 +182,24 @@ exports.checkout = async (req, res) => {
 
     // Ensure payment values are proper numbers
     const paidAmount = parseFloat(amountPaid) || 0;
-    
+
     // Calculate remaining balance if not provided, or use the provided value
-    const remainingBal = 
-      remainingBalance !== undefined ? 
-      parseFloat(remainingBalance) : 
-      Math.max(0, cart.total - paidAmount);
-    
+    const remainingBal =
+      remainingBalance !== undefined ?
+        parseFloat(remainingBalance) :
+        Math.max(0, cart.total - paidAmount);
+
+    // Debug logging
+    console.log('Payment values:', {
+      paidAmount,
+      remainingBal,
+      total: cart.total,
+      condition: remainingBal > 0
+    });
+
     // Determine payment status if not provided
     let paymentStat = paymentStatus || 'paid';
-    
+
     if (!paymentStatus) {
       if (paidAmount <= 0) {
         paymentStat = 'unpaid';
@@ -283,19 +289,52 @@ exports.checkout = async (req, res) => {
       amountPaid: paidAmount,
       remainingBalance: remainingBal,
       paymentStatus: paymentStat,
-      user: userId
+      user: userId,
+      customerInfo: customerInfo // Store customer info in the report
     });
 
     await report.save();
+
+    let debtRecord = null;
+
+    // IMPORTANT: Create debt record if there's any remaining balance
+    // Whether partial payment or full payment with remainder
+    if (remainingBal > 0) {
+      console.log('Creating debt record with:', {
+        userId,
+        reportId: report._id,
+        total: cart.total,
+        paidAmount,
+        remainingBal
+      });
+
+      try {
+        // Ensure the createDebtRecord function properly handles the debt
+        debtRecord = await debtController.createDebtRecord(
+          userId,
+          report._id,
+          cart.total,
+          paidAmount,
+          remainingBal
+        );
+
+        if (!debtRecord) {
+          throw new Error('Debt record creation failed without error');
+        }
+
+        console.log('Debt record created:', debtRecord);
+      } catch (error) {
+        console.error('Failed to create debt record:', error);
+      }
+    }
 
     // Update cart status
     cart.status = 'converted';
     await cart.save();
 
-    // Get user info for email
-    const user = await req.user;
+    // Rest of the function remains the same...
+    // Send email confirmation, etc.
 
-    // Return success response with report info - make sure to include payment details
     res.status(200).json({
       success: true,
       message: 'Checkout completed successfully',
@@ -311,7 +350,12 @@ exports.checkout = async (req, res) => {
         remainingBalance: remainingBal,
         paymentStatus: paymentStat,
         totalProfit: totalProfit,
-        categories: categories
+        categories: categories,
+        debtRecord: debtRecord ? {
+          debtId: debtRecord._id,
+          dueDate: debtRecord.dueDate,
+          status: debtRecord.status
+        } : null
       }
     });
   } catch (error) {
@@ -322,194 +366,194 @@ exports.checkout = async (req, res) => {
       error: error.message
     });
   }
-},
+};
 
-  // Update item quantity in cart
-  exports.updateCartItem = async (req, res) => {
-    try {
-      const userId = req.user.id;
-      const { itemId } = req.params;
-      const { quantity } = req.body;
 
-      if (!quantity || quantity < 1) {
-        return res.status(400).json({
-          success: false,
-          message: 'Valid quantity is required'
-        });
-      }
+exports.updateCartItem = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { itemId } = req.params;
+    const { quantity } = req.body;
 
-      // Find cart
-      const cart = await Cart.findOne({
-        user: userId,
-        status: 'active'
-      });
-
-      if (!cart) {
-        return res.status(404).json({
-          success: false,
-          message: 'Cart not found'
-        });
-      }
-
-      // Update item quantity
-      await cart.updateItemQuantity(itemId, parseInt(quantity));
-
-      res.status(200).json({
-        success: true,
-        message: 'Cart updated successfully',
-        data: {
-          _id: cart._id,
-          items: cart.items,
-          itemCount: cart.itemCount,
-          subtotal: cart.subtotal,
-          discount: cart.discount,
-          total: cart.total
-        }
-      });
-    } catch (error) {
-      console.error('Error updating cart item:', error);
-      res.status(500).json({
+    if (!quantity || quantity < 1) {
+      return res.status(400).json({
         success: false,
-        message: 'Failed to update cart item',
-        error: error.message
+        message: 'Valid quantity is required'
       });
     }
-  };
 
-  // Remove item from cart
-  exports.removeCartItem = async (req, res) => {
-    try {
-      const userId = req.user.id;
-      const { itemId } = req.params;
+    // Find cart
+    const cart = await Cart.findOne({
+      user: userId,
+      status: 'active'
+    });
 
-      // Find cart
-      const cart = await Cart.findOne({
-        user: userId,
-        status: 'active'
-      });
-
-      if (!cart) {
-        return res.status(404).json({
-          success: false,
-          message: 'Cart not found'
-        });
-      }
-
-      // Remove item from cart
-      await cart.removeItem(itemId);
-
-      res.status(200).json({
-        success: true,
-        message: 'Item removed from cart',
-        data: {
-          _id: cart._id,
-          items: cart.items,
-          itemCount: cart.itemCount,
-          subtotal: cart.subtotal,
-          discount: cart.discount,
-          total: cart.total
-        }
-      });
-    } catch (error) {
-      console.error('Error removing cart item:', error);
-      res.status(500).json({
+    if (!cart) {
+      return res.status(404).json({
         success: false,
-        message: 'Failed to remove item from cart',
-        error: error.message
+        message: 'Cart not found'
       });
     }
-  };
 
-  // Clear cart
-  exports.clearCart = async (req, res) => {
-    try {
-      const userId = req.user.id;
+    // Update item quantity
+    await cart.updateItemQuantity(itemId, parseInt(quantity));
 
-      // Find cart
-      const cart = await Cart.findOne({
-        user: userId,
-        status: 'active'
-      });
-
-      if (!cart) {
-        return res.status(404).json({
-          success: false,
-          message: 'Cart not found'
-        });
+    res.status(200).json({
+      success: true,
+      message: 'Cart updated successfully',
+      data: {
+        _id: cart._id,
+        items: cart.items,
+        itemCount: cart.itemCount,
+        subtotal: cart.subtotal,
+        discount: cart.discount,
+        total: cart.total
       }
+    });
+  } catch (error) {
+    console.error('Error updating cart item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update cart item',
+      error: error.message
+    });
+  }
+};
 
-      // Clear cart
-      await cart.clearCart();
+// Remove item from cart
+exports.removeCartItem = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { itemId } = req.params;
 
-      res.status(200).json({
-        success: true,
-        message: 'Cart cleared successfully',
-        data: {
-          _id: cart._id,
-          items: [],
-          itemCount: 0,
-          subtotal: 0,
-          discount: 0,
-          total: 0
-        }
-      });
-    } catch (error) {
-      console.error('Error clearing cart:', error);
-      res.status(500).json({
+    // Find cart
+    const cart = await Cart.findOne({
+      user: userId,
+      status: 'active'
+    });
+
+    if (!cart) {
+      return res.status(404).json({
         success: false,
-        message: 'Failed to clear cart',
-        error: error.message
+        message: 'Cart not found'
       });
     }
-  };
 
+    // Remove item from cart
+    await cart.removeItem(itemId);
 
-  /*************  ✨ Codeium Command ⭐  *************/
-  /******  96bb6249-96ec-439e-a531-636bbc5a33a3  *******/
-  exports.getAllCarts = async (req, res) => {
-    try {
-      // Only admins should be able to access this endpoint
-      if (!req.user.isAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: 'Unauthorized access'
-        });
+    res.status(200).json({
+      success: true,
+      message: 'Item removed from cart',
+      data: {
+        _id: cart._id,
+        items: cart.items,
+        itemCount: cart.itemCount,
+        subtotal: cart.subtotal,
+        discount: cart.discount,
+        total: cart.total
       }
+    });
+  } catch (error) {
+    console.error('Error removing cart item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove item from cart',
+      error: error.message
+    });
+  }
+};
 
-      const {
-        status = 'active',
-        page = 1,
-        limit = 10
-      } = req.query;
+// Clear cart
+exports.clearCart = async (req, res) => {
+  try {
+    const userId = req.user.id;
 
-      // Calculate pagination
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Find cart
+    const cart = await Cart.findOne({
+      user: userId,
+      status: 'active'
+    });
 
-      // Query carts
-      const carts = await Cart.find({ status })
-        .populate('user', 'username email')
-        .skip(skip)
-        .limit(parseInt(limit))
-        .sort({ updatedAt: -1 });
-
-      // Get total count
-      const total = await Cart.countDocuments({ status });
-
-      res.status(200).json({
-        success: true,
-        count: carts.length,
-        total,
-        totalPages: Math.ceil(total / parseInt(limit)),
-        currentPage: parseInt(page),
-        data: carts
-      });
-    } catch (error) {
-      console.error('Error fetching carts:', error);
-      res.status(500).json({
+    if (!cart) {
+      return res.status(404).json({
         success: false,
-        message: 'Failed to fetch carts',
-        error: error.message
+        message: 'Cart not found'
       });
     }
-  };
+
+    // Clear cart
+    await cart.clearCart();
+
+    res.status(200).json({
+      success: true,
+      message: 'Cart cleared successfully',
+      data: {
+        _id: cart._id,
+        items: [],
+        itemCount: 0,
+        subtotal: 0,
+        discount: 0,
+        total: 0
+      }
+    });
+  } catch (error) {
+    console.error('Error clearing cart:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear cart',
+      error: error.message
+    });
+  }
+};
+
+
+/*************  ✨ Codeium Command ⭐  *************/
+/******  96bb6249-96ec-439e-a531-636bbc5a33a3  *******/
+exports.getAllCarts = async (req, res) => {
+  try {
+    // Only admins should be able to access this endpoint
+    if (!req.user.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+    }
+
+    const {
+      status = 'active',
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Query carts
+    const carts = await Cart.find({ status })
+      .populate('user', 'username email')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ updatedAt: -1 });
+
+    // Get total count
+    const total = await Cart.countDocuments({ status });
+
+    res.status(200).json({
+      success: true,
+      count: carts.length,
+      total,
+      totalPages: Math.ceil(total / parseInt(limit)),
+      currentPage: parseInt(page),
+      data: carts
+    });
+  } catch (error) {
+    console.error('Error fetching carts:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch carts',
+      error: error.message
+    });
+  }
+};
 

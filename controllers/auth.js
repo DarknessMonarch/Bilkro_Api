@@ -826,9 +826,9 @@ exports.submitContactForm = async (req, res) => {
   }
 };
 
-exports.deleteAccount = async (req, res) => {
+exports.deleteOwnAccount = async (req, res) => {
   try {
-    const userId = req.params.userId || req.user.id;
+    const userId = req.user.id;
 
     // Check if user exists
     const userToDelete = await User.findById(userId);
@@ -839,19 +839,7 @@ exports.deleteAccount = async (req, res) => {
       });
     }
 
-    // Allow users to delete their own account OR admin to delete others
-    if (req.user.id !== userToDelete.id && !req.user.isAdmin) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Unauthorized to delete this account'
-      });
-    }
-
-    const userEmail = userToDelete.email;
-    const username = userToDelete.username;
-    const deletedByAdmin = req.user.id !== userToDelete.id;
-    const adminEmail = deletedByAdmin ? req.user.email : null;
-
+    // Don't allow deleting default admin account
     if (userToDelete.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
       return res.status(403).json({
         status: 'error',
@@ -859,31 +847,41 @@ exports.deleteAccount = async (req, res) => {
       });
     }
 
+    // Store user info for email notification before deletion
+    const userEmail = userToDelete.email;
+    const username = userToDelete.username;
+
     // Clean up user profile image
-    if (userToDelete.profileImage && userToDelete.profileImage !== '/profile/profile.jpg') {
+    if (userToDelete.profileImage && userToDelete.profileImage.includes(MINIO_ENDPOINT)) {
       try {
         // Extract the object path from the full URL
         const objectPath = userToDelete.profileImage
-          .replace(`${MINIO_ENDPOINT}/${bucketName}/`, '');
+          .split(`${MINIO_ENDPOINT}/${bucketName}/`)[1];
         
-        // Delete the image from MinIO
-        await minioClient.removeObject(bucketName, objectPath);
+        // Check if object exists before attempting to delete
+        const exists = await minioClient.statObject(bucketName, objectPath).catch(() => false);
+        if (exists) {
+          // Delete the image from MinIO
+          await minioClient.removeObject(bucketName, objectPath);
+        }
       } catch (err) {
         console.error('Error deleting profile image from MinIO:', err);
+        // Continue with deletion even if image removal fails
       }
     }
 
-    // Delete the user and notifications
-    await User.findByIdAndDelete(userId);
-    await Notification.deleteMany({ userId });
+    // Delete the user and all their notifications in a transaction if possible
+    await Promise.all([
+      User.findByIdAndDelete(userId),
+      Notification.deleteMany({ userId })
+    ]);
 
     // Send account deletion email
     await deleteAccountEmail(
       userEmail,
       username,
       {
-        deletedByAdmin,
-        adminEmail,
+        deletedByAdmin: false,
         deletionDate: new Date().toISOString()
       }
     );
@@ -897,6 +895,97 @@ exports.deleteAccount = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to delete account',
+      details: error.message
+    });
+  }
+};
+
+exports.deleteUserAccount = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'User ID is required'
+      });
+    }
+
+    // Check if user exists
+    const userToDelete = await User.findById(userId);
+    if (!userToDelete) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+
+    // Only allow admins to delete other users
+    if (!req.user.isAdmin) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Unauthorized to delete this account'
+      });
+    }
+
+    // Don't allow deleting default admin account
+    if (userToDelete.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Default admin account cannot be deleted'
+      });
+    }
+
+    // Store user info for email notification before deletion
+    const userEmail = userToDelete.email;
+    const username = userToDelete.username;
+    const adminEmail = req.user.email;
+
+    // Clean up user profile image
+    if (userToDelete.profileImage && userToDelete.profileImage.includes(MINIO_ENDPOINT)) {
+      try {
+        // Extract the object path from the full URL
+        const objectPath = userToDelete.profileImage
+          .split(`${MINIO_ENDPOINT}/${bucketName}/`)[1];
+        
+        // Check if object exists before attempting to delete
+        const exists = await minioClient.statObject(bucketName, objectPath).catch(() => false);
+        if (exists) {
+          // Delete the image from MinIO
+          await minioClient.removeObject(bucketName, objectPath);
+        }
+      } catch (err) {
+        console.error('Error deleting profile image from MinIO:', err);
+        // Continue with deletion even if image removal fails
+      }
+    }
+
+    // Delete the user and all their notifications in a transaction if possible
+    await Promise.all([
+      User.findByIdAndDelete(userId),
+      Notification.deleteMany({ userId })
+    ]);
+
+    // Send account deletion email
+    await deleteAccountEmail(
+      userEmail,
+      username,
+      {
+        deletedByAdmin: true,
+        adminEmail,
+        deletionDate: new Date().toISOString()
+      }
+    );
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User account deleted successfully'
+    });
+  } catch (error) {
+    console.error('User account deletion error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to delete user account',
       details: error.message
     });
   }
@@ -923,74 +1012,116 @@ exports.bulkDeleteAccounts = async (req, res) => {
       });
     }
 
-    const defaultAdminUser = await User.findOne({
-      email: ADMIN_EMAIL.toLowerCase()
-    });
-
-    if (defaultAdminUser && userIds.includes(defaultAdminUser._id.toString())) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Default admin account cannot be included in bulk deletion'
-      });
-    }
-
-    const deletedUsers = [];
-    const failedDeletions = [];
-
-    for (const userId of userIds) {
-      try {
-        const user = await User.findById(userId);
-        if (!user) {
-          failedDeletions.push({ userId, reason: 'User not found' });
-          continue;
-        }
-
-        const userEmail = user.email;
-        const username = user.username;
-
-        // Delete profile image if exists and is not the default
-        if (user.profileImage && user.profileImage !== '/profile/profile.jpg') {
-          try {
-            const objectPath = user.profileImage
-              .replace(`${MINIO_ENDPOINT}/${bucketName}/`, '');
-            
-            await minioClient.removeObject(bucketName, objectPath);
-          } catch (err) {
-            console.error('Error deleting profile image from MinIO:', err);
-          }
-        }
-
-        // Delete user and associated notifications
-        await User.findByIdAndDelete(userId);
-        await Notification.deleteMany({ userId });
-
-        // Send account deletion email
-        await deleteAccountEmail(
-          userEmail,
-          username,
-          {
-            deletedByAdmin: true,
-            adminEmail: requestingUser.email,
-            deletionDate: new Date().toISOString(),
-            bulkDeletion: true
-          }
-        );
-
-        deletedUsers.push(userId);
-      } catch (error) {
-        failedDeletions.push({ userId, reason: error.message });
+    // Find the default admin account to prevent deletion
+    const defaultAdminEmail = ADMIN_EMAIL.toLowerCase();
+    const usersToDelete = await User.find({ _id: { $in: userIds } });
+    
+    // Filter out default admin and collect user data for notifications
+    const filteredUserIds = [];
+    const defaultAdminIds = [];
+    const userDataForEmails = [];
+    
+    for (const user of usersToDelete) {
+      if (user.email.toLowerCase() === defaultAdminEmail) {
+        defaultAdminIds.push(user._id.toString());
+      } else {
+        filteredUserIds.push(user._id);
+        userDataForEmails.push({
+          id: user._id,
+          email: user.email,
+          username: user.username,
+          profileImage: user.profileImage
+        });
       }
     }
 
-    res.status(200).json({
+    if (filteredUserIds.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No valid users to delete after filtering out protected accounts'
+      });
+    }
+
+    // Process deletions in batches
+    const deletedUsers = [];
+    const failedDeletions = [];
+    const batchSize = 10;
+    
+    for (let i = 0; i < userDataForEmails.length; i += batchSize) {
+      const batch = userDataForEmails.slice(i, i + batchSize);
+      
+      // Process each user in the current batch
+      const batchPromises = batch.map(async (userData) => {
+        try {
+          // Delete profile image if exists and is not the default
+          if (userData.profileImage && userData.profileImage.includes(MINIO_ENDPOINT)) {
+            try {
+              const objectPath = userData.profileImage
+                .split(`${MINIO_ENDPOINT}/${bucketName}/`)[1];
+              
+              // Check if object exists before attempting to delete
+              const exists = await minioClient.statObject(bucketName, objectPath).catch(() => false);
+              if (exists) {
+                await minioClient.removeObject(bucketName, objectPath);
+              }
+            } catch (err) {
+              console.error(`Error deleting profile image for user ${userData.id}:`, err);
+              // Continue with user deletion even if image deletion fails
+            }
+          }
+
+          // Send account deletion email
+          await deleteAccountEmail(
+            userData.email,
+            userData.username,
+            {
+              deletedByAdmin: true,
+              adminEmail: requestingUser.email,
+              deletionDate: new Date().toISOString(),
+              bulkDeletion: true
+            }
+          );
+
+          deletedUsers.push(userData.id);
+        } catch (error) {
+          console.error(`Error processing deletion for user ${userData.id}:`, error);
+          failedDeletions.push({ userId: userData.id, reason: 'Failed to process deletion preparations' });
+        }
+      });
+      
+      // Wait for all users in this batch to be processed
+      await Promise.all(batchPromises);
+    }
+    
+    // Delete users and their notifications in bulk operations
+    if (deletedUsers.length > 0) {
+      await Promise.all([
+        User.deleteMany({ _id: { $in: filteredUserIds } }),
+        Notification.deleteMany({ userId: { $in: filteredUserIds } })
+      ]);
+    }
+
+    // Prepare response
+    const response = {
       status: 'success',
       message: 'Bulk deletion completed',
       data: {
         deletedCount: deletedUsers.length,
         failedCount: failedDeletions.length,
-        failedDeletions: failedDeletions.length > 0 ? failedDeletions : undefined
+        skippedAdminCount: defaultAdminIds.length
       }
-    });
+    };
+    
+    if (failedDeletions.length > 0) {
+      response.data.failedDeletions = failedDeletions;
+    }
+    
+    if (defaultAdminIds.length > 0) {
+      response.data.skippedAdminIds = defaultAdminIds;
+      response.message += '. Note: Default admin account(s) were skipped.';
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error('Bulk deletion error:', error);
     res.status(500).json({
