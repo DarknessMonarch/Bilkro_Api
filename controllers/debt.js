@@ -49,13 +49,7 @@ exports.createDebtRecord = async (userId, reportId, total, amountPaid, remaining
 
 exports.getDebtStatistics = async (req, res) => {
   try {
-    // Ensure user has appropriate permissions
-    if (!req.user.isAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Unauthorized access'
-      });
-    }
+
 
     const today = new Date();
 
@@ -266,13 +260,7 @@ exports.makePayment = async (req, res) => {
 // Admin: Get all debt records
 exports.getAllDebts = async (req, res) => {
   try {
-    // Ensure user is admin
-    if (!req.user.isAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Unauthorized access'
-      });
-    }
+
 
     const {
       status,

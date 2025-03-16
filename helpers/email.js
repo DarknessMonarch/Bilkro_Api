@@ -71,17 +71,11 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
   }
 
   try {
-    // Get the email template
     const emailPath = path.join(__dirname, '../client/orderConfirmation.html');
     const templateSource = fs.readFileSync(emailPath, 'utf-8');
-
-    // Compile the template with Handlebars
     const template = Handlebars.compile(templateSource);
-
-    // Format date
     const orderDate = new Date(orderDetails.date || Date.now()).toLocaleString();
 
-    // Prepare the data for the template
     const emailData = {
       customerName,
       orderId: orderDetails.reportId || orderDetails.saleId || 'N/A',
@@ -100,13 +94,17 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
       customerAddress: orderDetails.customerInfo?.address || 'N/A',
       paymentMethod: orderDetails.paymentMethod || 'N/A',
       transactionId: orderDetails.transactionId || orderDetails.saleId || 'N/A',
-      orderTrackingUrl: `${process.env.WEBSITE_LINK}/orders/${orderDetails.saleId}`
+      orderTrackingUrl: `${process.env.WEBSITE_LINK}/orders/${orderDetails.saleId}`,
+      
+      paymentStatus: orderDetails.paymentStatus || 'paid',
+      amountPaid: orderDetails.amountPaid ? orderDetails.amountPaid.toFixed(2) : orderDetails.total.toFixed(2),
+      remainingBalance: orderDetails.remainingBalance ? orderDetails.remainingBalance.toFixed(2) : '0.00',
+      
+      debtId: orderDetails.debtId || null,
+      dueDate: orderDetails.dueDate ? new Date(orderDetails.dueDate).toLocaleDateString() : null
     };
-
-    // Apply the data to the template
     const personalizedTemplate = template(emailData);
 
-    // Set up email options
     let mailOptions = {
       from: process.env.EMAIL,
       to: email,
@@ -114,7 +112,6 @@ exports.sendOrderConfirmationEmail = async (email, customerName, orderDetails) =
       html: personalizedTemplate,
     };
 
-    // Send the email
     const transporter = emailTransporter();
     const info = await transporter.sendMail(mailOptions);
     return { success: true, message: 'Order confirmation email sent successfully.' };
