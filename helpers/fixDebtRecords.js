@@ -1,14 +1,7 @@
-// scripts/fixDebtRecords.js
-/**
- * This script fixes all existing debt records by recalculating their statuses
- * Run it once after updating the debt controller
- */
-
 const mongoose = require('mongoose');
 const Debt = require('../models/debt');
 const config = require('../config/db');
 
-// Connect to database
 mongoose.connect(config.mongoURI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -23,7 +16,6 @@ const fixDebtRecords = async () => {
   try {
     console.log('Starting debt records fix...');
     
-    // Get all debt records
     const allDebts = await Debt.find({});
     console.log(`Found ${allDebts.length} total debt records`);
     
@@ -32,9 +24,8 @@ const fixDebtRecords = async () => {
     let alreadyCorrectCount = 0;
     
     for (const debt of allDebts) {
-      let newStatus = debt.status; // Start with current status
+      let newStatus = debt.status; 
       
-      // Recalculate status based on payment and due date
       if (debt.remainingAmount <= 0) {
         newStatus = 'paid';
       } else if (debt.dueDate < today) {
@@ -42,8 +33,7 @@ const fixDebtRecords = async () => {
       } else {
         newStatus = 'current';
       }
-      
-      // Only update if status needs to change
+
       if (debt.status !== newStatus) {
         console.log(`Updating debt ${debt._id}: ${debt.status} -> ${newStatus}`);
         debt.status = newStatus;
@@ -59,7 +49,6 @@ const fixDebtRecords = async () => {
     console.log(`- Already correct: ${alreadyCorrectCount} records`);
     console.log(`- Total: ${allDebts.length} records`);
     
-    // Disconnect from database
     await mongoose.disconnect();
     console.log('Database disconnected');
     
